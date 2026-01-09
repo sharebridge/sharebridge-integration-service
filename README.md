@@ -4,7 +4,20 @@
 
 ## Overview
 
-This repository is part of the ShareBridge project - a platform for dignified charitable giving.
+This repository contains the **Integration Service** - handles all third-party vendor integrations for food delivery and payments.
+
+**Key Responsibilities:**
+- 🍽️ Food delivery platform integrations (Swiggy, Zomato, Uber Eats)
+- 🔄 Unified vendor API abstraction layer
+- 💳 Payment redirect to vendor platforms (zero payment liability)
+- 📍 Restaurant/vendor search by location
+- 📋 Menu retrieval and item selection
+- 🚚 Order placement with vendor APIs
+- 📊 Delivery tracking via vendor webhooks
+- 🔁 Fallback logic if primary vendor fails
+- 🏪 Direct vendor program integration (future)
+
+**Technology Stack:** Node.js with NestJS for API orchestration and webhook handling
 
 For overall project context, see the [main ShareBridge repository](https://github.com/sharebridge/sharebridge).
 
