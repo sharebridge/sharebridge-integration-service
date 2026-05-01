@@ -7,15 +7,16 @@
 This repository contains the **Integration Service** - handles all third-party vendor integrations for food delivery and payments.
 
 **Key Responsibilities:**
-- 🍽️ Food delivery platform integrations (Swiggy, Zomato, Uber Eats)
-- 🔄 Unified vendor API abstraction layer
+- 🍽️ Food delivery platform integrations (Swiggy, Zomato, Uber Eats) via deep links and secure data sharing
+- 🔄 Unified vendor API abstraction layer (fallback for future API access)
 - 💳 Payment redirect to vendor platforms (zero payment liability)
 - 📍 Restaurant/vendor search by location
 - 📋 Menu retrieval and item selection
-- 🚚 Order placement with vendor APIs
-- 📊 Delivery tracking via vendor webhooks
+- 🚚 Order placement via deep links with secure beneficiary identification
+- 📊 Delivery tracking via secure link endpoints and vendor webhooks
 - 🔁 Fallback logic if primary vendor fails
-- 🏪 Direct vendor program integration (future)
+- 🏪 Direct vendor program integration (MVP approach)
+- 🔒 Privacy-compliant beneficiary data sharing (time-limited secure links, NDA-protected access)
 
 **Technology Stack:** Node.js with NestJS for API orchestration and webhook handling
 
