@@ -16,7 +16,7 @@ This repository contains the **Integration Service** - handles all third-party v
 - 📊 Delivery tracking via secure link endpoints and vendor webhooks
 - 🔁 Fallback logic if primary vendor fails
 - 🏪 Direct vendor program integration (MVP approach)
-- 🔒 Privacy-compliant beneficiary data sharing (time-limited secure links, NDA-protected access)
+- 🔒 Privacy-compliant beneficiary data sharing (time-limited secure links with role-scoped token access, audit logging, and expiry controls)
 
 **Technology Stack:** Node.js with NestJS for API orchestration and webhook handling
 
