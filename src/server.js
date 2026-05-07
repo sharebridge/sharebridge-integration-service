@@ -7,6 +7,10 @@ import {
   validateSuggestVendorsRequest
 } from "./suggestVendors.js";
 import { PreferencesStore } from "./preferencesStore.js";
+import {
+  LocalPreferencesGateway,
+  UserServicePreferencesGateway
+} from "./preferencesGateway.js";
 
 const DEFAULT_PORT = Number(process.env.PORT || 8080);
 
@@ -16,11 +20,15 @@ function sendJson(res, statusCode, body) {
 }
 
 /**
- * Build an http.Server wired up against the given PreferencesStore. Tests
- * use this factory with a temp DB path; the bin entrypoint at the bottom
- * of this file uses it with the default file-backed store.
+ * Build an http.Server wired up against the given preferences gateway.
+ * Tests inject a LocalPreferencesGateway with a temp-directory store; the
+ * bin entrypoint at the bottom of this file selects the gateway based on
+ * the PREFERENCES_BACKEND env var so swapping to user-service is one flip.
  */
-export function createIntegrationServer({ preferencesStore }) {
+export function createIntegrationServer({ preferencesGateway }) {
+  if (!preferencesGateway) {
+    throw new Error("createIntegrationServer requires preferencesGateway");
+  }
   return createServer((req, res) => {
     if (req.method === "GET" && req.url === "/health") {
       return sendJson(res, 200, { ok: true, service: "integration-service" });
@@ -74,10 +82,18 @@ export function createIntegrationServer({ preferencesStore }) {
           message: validationError
         });
       }
-      return sendJson(res, 200, {
-        user_id: userId,
-        presets: preferencesStore.getByUser(userId)
-      });
+      preferencesGateway
+        .listByUser(userId)
+        .then((presets) =>
+          sendJson(res, 200, { user_id: userId, presets })
+        )
+        .catch((error) =>
+          sendJson(res, 502, {
+            code: "preferences_backend_error",
+            message: `Unable to load presets: ${error.message || error}`
+          })
+        );
+      return;
     }
 
     if (req.method === "POST" && req.url === "/v1/donor-setup/preferences") {
@@ -113,8 +129,8 @@ export function createIntegrationServer({ preferencesStore }) {
           saved_at: now
         }));
 
-        preferencesStore
-          .saveForUser(payload.user_id, created)
+        preferencesGateway
+          .upsertForUser(payload.user_id, created)
           .then((updated) =>
             sendJson(res, 200, {
               user_id: payload.user_id,
@@ -127,7 +143,7 @@ export function createIntegrationServer({ preferencesStore }) {
           .catch((error) =>
             sendJson(res, 500, {
               code: "persistence_error",
-              message: `Unable to persist presets: ${error}`
+              message: `Unable to persist presets: ${error.message || error}`
             })
           );
         return;
@@ -143,12 +159,27 @@ export function createIntegrationServer({ preferencesStore }) {
   });
 }
 
+function buildDefaultPreferencesGateway() {
+  const backend = (process.env.PREFERENCES_BACKEND || "local").toLowerCase();
+  if (backend === "user_service") {
+    return new UserServicePreferencesGateway({
+      baseUrl: process.env.USER_SERVICE_BASE_URL
+    });
+  }
+  if (backend !== "local") {
+    throw new Error(
+      `Unknown PREFERENCES_BACKEND='${backend}'. Expected 'local' or 'user_service'.`
+    );
+  }
+  return new LocalPreferencesGateway(new PreferencesStore());
+}
+
 const isMainModule =
   process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMainModule) {
-  const preferencesStore = new PreferencesStore();
-  const server = createIntegrationServer({ preferencesStore });
-  preferencesStore.init().then(() => {
+  const preferencesGateway = buildDefaultPreferencesGateway();
+  const server = createIntegrationServer({ preferencesGateway });
+  preferencesGateway.init().then(() => {
     server.listen(DEFAULT_PORT, () => {
       // eslint-disable-next-line no-console
       console.log(`Integration service listening on ${DEFAULT_PORT}`);

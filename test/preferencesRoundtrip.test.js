@@ -6,13 +6,15 @@ import { join } from "node:path";
 
 import { createIntegrationServer } from "../src/server.js";
 import { PreferencesStore } from "../src/preferencesStore.js";
+import { LocalPreferencesGateway } from "../src/preferencesGateway.js";
 
 async function startTestServer() {
   const tempDir = mkdtempSync(join(tmpdir(), "sb-prefs-"));
   const dbPath = join(tempDir, "preferences.json");
   const store = new PreferencesStore(dbPath);
-  await store.init();
-  const server = createIntegrationServer({ preferencesStore: store });
+  const gateway = new LocalPreferencesGateway(store);
+  await gateway.init();
+  const server = createIntegrationServer({ preferencesGateway: gateway });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
   const baseUrl = `http://127.0.0.1:${port}`;
