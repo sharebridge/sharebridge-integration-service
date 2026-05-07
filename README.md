@@ -54,6 +54,9 @@ See the [main repository's CALL_FOR_CONTRIBUTORS.md](https://github.com/sharebri
 - Joining GitHub Discussions
 - Submitting prompts and feature ideas
 
+Contract reference for current donor setup search flow:
+- https://github.com/sharebridge/sharebridge/blob/main/design/contracts/donor_setup_suggest_vendors.openapi.yaml
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
