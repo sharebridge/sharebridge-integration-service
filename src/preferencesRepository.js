@@ -1,23 +1,24 @@
 /**
- * Boundary between the integration service and the future authoritative
- * owner of donor preferences (sharebridge-user-service).
+ * Repository abstraction for donor preferences.
  *
- * Today the integration service owns donor presets via a file-backed store.
- * This gateway abstracts the access pattern so callers (HTTP handlers) do
- * not depend on the storage location, only on the contract:
+ * The HTTP handlers in server.js depend only on this contract; they do not
+ * care whether presets live on disk today or in sharebridge-user-service
+ * tomorrow. Concrete implementations decide where the data actually lives.
  *
- *   listByUser(userId)            -> Promise<Preset[]>
- *   upsertForUser(userId, presets) -> Promise<Preset[]>  (returns full set)
+ * Contract:
+ *   init()                          -> Promise<void>
+ *   listByUser(userId)              -> Promise<Preset[]>
+ *   upsertForUser(userId, presets)  -> Promise<Preset[]>  (full set after upsert)
  *
- * When the user-service preferences API ships, plug in a remote gateway by
- * setting `PREFERENCES_BACKEND=user_service` and `USER_SERVICE_BASE_URL=...`.
- * The HTTP handlers do not need to change.
+ * When the user-service preferences API ships, plug in the remote
+ * implementation by setting `PREFERENCES_BACKEND=user_service` and
+ * `USER_SERVICE_BASE_URL=...`. The HTTP handlers do not need to change.
  */
 
-export class LocalPreferencesGateway {
+export class LocalPreferencesRepository {
   constructor(store) {
     if (!store) {
-      throw new Error("LocalPreferencesGateway requires a PreferencesStore");
+      throw new Error("LocalPreferencesRepository requires a PreferencesStore");
     }
     this._store = store;
   }
@@ -36,7 +37,7 @@ export class LocalPreferencesGateway {
 }
 
 /**
- * Placeholder gateway documenting the planned remote contract against
+ * Placeholder repository documenting the planned remote contract against
  * sharebridge-user-service. Intentionally not wired yet: until the user
  * service publishes its preferences API baseline we should not silently
  * fall through to a half-implemented client.
@@ -47,11 +48,11 @@ export class LocalPreferencesGateway {
  *
  * Auth: forward the donor's auth context (see "minimal auth context" task).
  */
-export class UserServicePreferencesGateway {
+export class UserServicePreferencesRepository {
   constructor({ baseUrl }) {
     if (!baseUrl) {
       throw new Error(
-        "UserServicePreferencesGateway requires baseUrl (USER_SERVICE_BASE_URL)"
+        "UserServicePreferencesRepository requires baseUrl (USER_SERVICE_BASE_URL)"
       );
     }
     this._baseUrl = baseUrl;
@@ -64,14 +65,14 @@ export class UserServicePreferencesGateway {
 
   async listByUser(_userId) {
     throw new Error(
-      "UserServicePreferencesGateway is not yet implemented. " +
+      "UserServicePreferencesRepository is not yet implemented. " +
         "Set PREFERENCES_BACKEND=local until the user-service preferences API ships."
     );
   }
 
   async upsertForUser(_userId, _presets) {
     throw new Error(
-      "UserServicePreferencesGateway is not yet implemented. " +
+      "UserServicePreferencesRepository is not yet implemented. " +
         "Set PREFERENCES_BACKEND=local until the user-service preferences API ships."
     );
   }

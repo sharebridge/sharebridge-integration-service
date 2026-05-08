@@ -8,9 +8,9 @@ import {
 } from "./suggestVendors.js";
 import { PreferencesStore } from "./preferencesStore.js";
 import {
-  LocalPreferencesGateway,
-  UserServicePreferencesGateway
-} from "./preferencesGateway.js";
+  LocalPreferencesRepository,
+  UserServicePreferencesRepository
+} from "./preferencesRepository.js";
 import {
   extractUserIdFromHeaders,
   resolveAuthenticatedUserId
@@ -24,14 +24,17 @@ function sendJson(res, statusCode, body) {
 }
 
 /**
- * Build an http.Server wired up against the given preferences gateway.
- * Tests inject a LocalPreferencesGateway with a temp-directory store; the
- * bin entrypoint at the bottom of this file selects the gateway based on
- * the PREFERENCES_BACKEND env var so swapping to user-service is one flip.
+ * Build an http.Server wired up against the given preferences repository.
+ * Tests inject a LocalPreferencesRepository with a temp-directory store;
+ * the bin entrypoint at the bottom of this file selects the repository
+ * based on the PREFERENCES_BACKEND env var so swapping to user-service is
+ * one config flip.
  */
-export function createIntegrationServer({ preferencesGateway }) {
-  if (!preferencesGateway) {
-    throw new Error("createIntegrationServer requires preferencesGateway");
+export function createIntegrationServer({ preferencesRepository }) {
+  if (!preferencesRepository) {
+    throw new Error(
+      "createIntegrationServer requires preferencesRepository"
+    );
   }
   return createServer((req, res) => {
     if (req.method === "GET" && req.url === "/health") {
@@ -94,7 +97,7 @@ export function createIntegrationServer({ preferencesGateway }) {
           message: validationError
         });
       }
-      preferencesGateway
+      preferencesRepository
         .listByUser(userId)
         .then((presets) =>
           sendJson(res, 200, { user_id: userId, presets })
@@ -154,7 +157,7 @@ export function createIntegrationServer({ preferencesGateway }) {
           saved_at: now
         }));
 
-        preferencesGateway
+        preferencesRepository
           .upsertForUser(authedUserId, created)
           .then((updated) =>
             sendJson(res, 200, {
@@ -184,10 +187,10 @@ export function createIntegrationServer({ preferencesGateway }) {
   });
 }
 
-function buildDefaultPreferencesGateway() {
+function buildDefaultPreferencesRepository() {
   const backend = (process.env.PREFERENCES_BACKEND || "local").toLowerCase();
   if (backend === "user_service") {
-    return new UserServicePreferencesGateway({
+    return new UserServicePreferencesRepository({
       baseUrl: process.env.USER_SERVICE_BASE_URL
     });
   }
@@ -196,15 +199,15 @@ function buildDefaultPreferencesGateway() {
       `Unknown PREFERENCES_BACKEND='${backend}'. Expected 'local' or 'user_service'.`
     );
   }
-  return new LocalPreferencesGateway(new PreferencesStore());
+  return new LocalPreferencesRepository(new PreferencesStore());
 }
 
 const isMainModule =
   process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMainModule) {
-  const preferencesGateway = buildDefaultPreferencesGateway();
-  const server = createIntegrationServer({ preferencesGateway });
-  preferencesGateway.init().then(() => {
+  const preferencesRepository = buildDefaultPreferencesRepository();
+  const server = createIntegrationServer({ preferencesRepository });
+  preferencesRepository.init().then(() => {
     server.listen(DEFAULT_PORT, () => {
       // eslint-disable-next-line no-console
       console.log(`Integration service listening on ${DEFAULT_PORT}`);
