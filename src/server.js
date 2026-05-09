@@ -9,6 +9,7 @@ import {
 import { PreferencesStore } from "./preferencesStore.js";
 import {
   LocalPreferencesRepository,
+  UserServicePreferencesError,
   UserServicePreferencesRepository
 } from "./preferencesRepository.js";
 import {
@@ -21,6 +22,17 @@ const DEFAULT_PORT = Number(process.env.PORT || 8080);
 function sendJson(res, statusCode, body) {
   res.writeHead(statusCode, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
+}
+
+function pickAuthHeaders(headers) {
+  const out = {};
+  if (typeof headers?.authorization === "string") {
+    out.authorization = headers.authorization;
+  }
+  if (typeof headers?.["x-user-id"] === "string") {
+    out["x-user-id"] = headers["x-user-id"];
+  }
+  return out;
 }
 
 /**
@@ -98,16 +110,22 @@ export function createIntegrationServer({ preferencesRepository }) {
         });
       }
       preferencesRepository
-        .listByUser(userId)
+        .listByUser(userId, { authHeaders: pickAuthHeaders(req.headers) })
         .then((presets) =>
           sendJson(res, 200, { user_id: userId, presets })
         )
-        .catch((error) =>
-          sendJson(res, 502, {
+        .catch((error) => {
+          if (error instanceof UserServicePreferencesError && error.status < 500) {
+            return sendJson(res, error.status, {
+              code: error.code,
+              message: error.message
+            });
+          }
+          return sendJson(res, 502, {
             code: "preferences_backend_error",
             message: `Unable to load presets: ${error.message || error}`
-          })
-        );
+          });
+        });
       return;
     }
 
@@ -158,7 +176,9 @@ export function createIntegrationServer({ preferencesRepository }) {
         }));
 
         preferencesRepository
-          .upsertForUser(authedUserId, created)
+          .upsertForUser(authedUserId, created, {
+            authHeaders: pickAuthHeaders(req.headers)
+          })
           .then((updated) =>
             sendJson(res, 200, {
               user_id: authedUserId,
@@ -168,12 +188,21 @@ export function createIntegrationServer({ preferencesRepository }) {
               saved_at: now
             })
           )
-          .catch((error) =>
-            sendJson(res, 500, {
+          .catch((error) => {
+            if (
+              error instanceof UserServicePreferencesError &&
+              error.status < 500
+            ) {
+              return sendJson(res, error.status, {
+                code: error.code,
+                message: error.message
+              });
+            }
+            return sendJson(res, 500, {
               code: "persistence_error",
               message: `Unable to persist presets: ${error.message || error}`
-            })
-          );
+            });
+          });
         return;
       });
 

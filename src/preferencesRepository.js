@@ -7,8 +7,8 @@
  *
  * Contract:
  *   init()                          -> Promise<void>
- *   listByUser(userId)              -> Promise<Preset[]>
- *   upsertForUser(userId, presets)  -> Promise<Preset[]>  (full set after upsert)
+ *   listByUser(userId, opts?)              -> Promise<Preset[]>
+ *   upsertForUser(userId, presets, opts?)  -> Promise<Preset[]>  (full set after upsert)
  *
  * When the user-service preferences API ships, plug in the remote
  * implementation by setting `PREFERENCES_BACKEND=user_service` and
@@ -27,27 +27,33 @@ export class LocalPreferencesRepository {
     return this._store.init();
   }
 
-  async listByUser(userId) {
+  async listByUser(userId, _opts = {}) {
     return this._store.getByUser(userId);
   }
 
-  async upsertForUser(userId, presets) {
+  async upsertForUser(userId, presets, _opts = {}) {
     return this._store.saveForUser(userId, presets);
   }
 }
 
 /**
- * Placeholder repository documenting the planned remote contract against
- * sharebridge-user-service. Intentionally not wired yet: until the user
- * service publishes its preferences API baseline we should not silently
- * fall through to a half-implemented client.
+ * Remote repository backed by sharebridge-user-service.
  *
- * Expected user-service contract (planned):
+ * Expected user-service contract:
  *   GET    /v1/users/{user_id}/donor-presets         -> { presets: Preset[] }
  *   PUT    /v1/users/{user_id}/donor-presets         -> { presets: Preset[] }
  *
  * Auth: forward the donor's auth context (see "minimal auth context" task).
  */
+export class UserServicePreferencesError extends Error {
+  constructor({ status, code, message }) {
+    super(message);
+    this.name = "UserServicePreferencesError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 export class UserServicePreferencesRepository {
   constructor({ baseUrl }) {
     if (!baseUrl) {
@@ -59,21 +65,77 @@ export class UserServicePreferencesRepository {
   }
 
   async init() {
-    // No-op for now; once the remote API is reachable we may pre-flight
-    // it here.
+    // No-op for MVP; calls are health-checked lazily per request.
   }
 
-  async listByUser(_userId) {
-    throw new Error(
-      "UserServicePreferencesRepository is not yet implemented. " +
-        "Set PREFERENCES_BACKEND=local until the user-service preferences API ships."
+  async listByUser(userId, opts = {}) {
+    const response = await fetch(
+      `${this._baseUrl}/v1/users/${encodeURIComponent(userId)}/donor-presets`,
+      { headers: this.#buildHeaders(opts.authHeaders) }
     );
+    const payload = await this.#readJson(response);
+    if (!response.ok) {
+      throw this.#toError(response.status, payload);
+    }
+    if (!payload || !Array.isArray(payload.presets)) {
+      throw new Error("User-service GET donor-presets returned invalid payload.");
+    }
+    return payload.presets;
   }
 
-  async upsertForUser(_userId, _presets) {
-    throw new Error(
-      "UserServicePreferencesRepository is not yet implemented. " +
-        "Set PREFERENCES_BACKEND=local until the user-service preferences API ships."
+  async upsertForUser(userId, presets, opts = {}) {
+    const response = await fetch(
+      `${this._baseUrl}/v1/users/${encodeURIComponent(userId)}/donor-presets`,
+      {
+        method: "PUT",
+        headers: this.#buildHeaders(opts.authHeaders, {
+          "content-type": "application/json"
+        }),
+        body: JSON.stringify({ presets })
+      }
     );
+    const payload = await this.#readJson(response);
+    if (!response.ok) {
+      throw this.#toError(response.status, payload);
+    }
+    if (!payload || !Array.isArray(payload.presets)) {
+      throw new Error("User-service PUT donor-presets returned invalid payload.");
+    }
+    return payload.presets;
+  }
+
+  #buildHeaders(authHeaders = {}, extraHeaders = {}) {
+    const headers = { ...extraHeaders };
+    if (
+      authHeaders.authorization &&
+      typeof authHeaders.authorization === "string"
+    ) {
+      headers.authorization = authHeaders.authorization;
+    }
+    if (authHeaders["x-user-id"] && typeof authHeaders["x-user-id"] === "string") {
+      headers["x-user-id"] = authHeaders["x-user-id"];
+    }
+    return headers;
+  }
+
+  async #readJson(response) {
+    const text = await response.text();
+    if (!text) {
+      return {};
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(
+        `User-service response was not valid JSON (status ${response.status}).`
+      );
+    }
+  }
+
+  #toError(status, payload) {
+    const code = payload?.code || "preferences_backend_error";
+    const message =
+      payload?.message || `User-service donor-presets request failed (HTTP ${status}).`;
+    return new UserServicePreferencesError({ status, code, message });
   }
 }
