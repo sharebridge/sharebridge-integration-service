@@ -19,6 +19,10 @@ class _FakeStore {
     this.byUser.set(userId, presets);
     return presets;
   }
+  async clearForUser(userId) {
+    this.byUser.set(userId, []);
+    return [];
+  }
 }
 
 test("LocalPreferencesRepository delegates list and upsert to store", async () => {
@@ -29,6 +33,16 @@ test("LocalPreferencesRepository delegates list and upsert to store", async () =
   await repository.upsertForUser("alice", [{ id: "p1" }]);
   const presets = await repository.listByUser("alice");
   assert.deepEqual(presets, [{ id: "p1" }]);
+});
+
+test("LocalPreferencesRepository clearForUser empties store for user", async () => {
+  const store = new _FakeStore();
+  const repository = new LocalPreferencesRepository(store);
+  await repository.init();
+  await repository.upsertForUser("alice", [{ id: "p1" }]);
+  const cleared = await repository.clearForUser("alice");
+  assert.deepEqual(cleared, []);
+  assert.deepEqual(await repository.listByUser("alice"), []);
 });
 
 test("LocalPreferencesRepository requires a store", () => {
@@ -113,6 +127,34 @@ test("UserServicePreferencesRepository upsertForUser sends PUT payload", async (
     assert.equal(seenMethod, "PUT");
     assert.deepEqual(seenBody, { presets: payload });
     assert.deepEqual(saved, payload);
+  } finally {
+    await stub.cleanup();
+  }
+});
+
+test("UserServicePreferencesRepository clearForUser sends PUT with empty presets", async () => {
+  let seenMethod = null;
+  let seenBody = null;
+  const stub = await startStubUserService((req, res) => {
+    seenMethod = req.method;
+    let raw = "";
+    req.on("data", (chunk) => {
+      raw += chunk;
+    });
+    req.on("end", () => {
+      seenBody = JSON.parse(raw || "{}");
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ presets: [] }));
+    });
+  });
+  try {
+    const repository = new UserServicePreferencesRepository({
+      baseUrl: stub.baseUrl
+    });
+    const cleared = await repository.clearForUser("alice");
+    assert.equal(seenMethod, "PUT");
+    assert.deepEqual(seenBody, { presets: [] });
+    assert.deepEqual(cleared, []);
   } finally {
     await stub.cleanup();
   }

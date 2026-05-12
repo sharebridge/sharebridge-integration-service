@@ -112,6 +112,13 @@ test("preferences endpoints return 401 when no auth context is provided", async 
     assert.equal(postRes.status, 401);
     const postBody = await postRes.json();
     assert.equal(postBody.code, "missing_auth_context");
+
+    const delRes = await fetch(`${baseUrl}/v1/donor-setup/preferences`, {
+      method: "DELETE"
+    });
+    assert.equal(delRes.status, 401);
+    const delBody = await delRes.json();
+    assert.equal(delBody.code, "missing_auth_context");
   } finally {
     await cleanup();
   }

@@ -9,6 +9,7 @@
  *   init()                          -> Promise<void>
  *   listByUser(userId, opts?)              -> Promise<Preset[]>
  *   upsertForUser(userId, presets, opts?)  -> Promise<Preset[]>  (full set after upsert)
+ *   clearForUser(userId, opts?)            -> Promise<Preset[]>  (always [])
  *
  * When the user-service preferences API ships, plug in the remote
  * implementation by setting `PREFERENCES_BACKEND=user_service` and
@@ -33,6 +34,10 @@ export class LocalPreferencesRepository {
 
   async upsertForUser(userId, presets, _opts = {}) {
     return this._store.saveForUser(userId, presets);
+  }
+
+  async clearForUser(userId, _opts = {}) {
+    return this._store.clearForUser(userId);
   }
 }
 
@@ -102,6 +107,10 @@ export class UserServicePreferencesRepository {
       throw new Error("User-service PUT donor-presets returned invalid payload.");
     }
     return payload.presets;
+  }
+
+  async clearForUser(userId, opts = {}) {
+    return this.upsertForUser(userId, [], opts);
   }
 
   #buildHeaders(authHeaders = {}, extraHeaders = {}) {

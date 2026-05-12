@@ -208,3 +208,50 @@ test("save rejects malformed presets without persisting", async () => {
     await cleanup();
   }
 });
+
+test("DELETE preferences clears authed user only", async () => {
+  const { baseUrl, cleanup } = await startTestServer();
+  try {
+    const aliceToken = mintAuthToken("alice");
+    const bobToken = mintAuthToken("bob");
+    await fetch(`${baseUrl}/v1/donor-setup/preferences`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${aliceToken}`
+      },
+      body: JSON.stringify({ user_id: "alice", presets: [sampleA] })
+    });
+    await fetch(`${baseUrl}/v1/donor-setup/preferences`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${bobToken}`
+      },
+      body: JSON.stringify({ user_id: "bob", presets: [sampleB] })
+    });
+
+    const del = await fetch(
+      `${baseUrl}/v1/donor-setup/preferences?user_id=alice`,
+      { method: "DELETE", headers: { authorization: `Bearer ${aliceToken}` } }
+    );
+    assert.equal(del.status, 200);
+    const delBody = await del.json();
+    assert.equal(delBody.cleared, true);
+    assert.deepEqual(delBody.presets, []);
+
+    const aliceGet = await fetch(
+      `${baseUrl}/v1/donor-setup/preferences?user_id=alice`,
+      { headers: { authorization: `Bearer ${aliceToken}` } }
+    );
+    assert.equal((await aliceGet.json()).presets.length, 0);
+
+    const bobGet = await fetch(
+      `${baseUrl}/v1/donor-setup/preferences?user_id=bob`,
+      { headers: { authorization: `Bearer ${bobToken}` } }
+    );
+    assert.equal((await bobGet.json()).presets.length, 1);
+  } finally {
+    await cleanup();
+  }
+});

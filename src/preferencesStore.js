@@ -38,6 +38,12 @@ export class PreferencesStore {
     return this.state.byUser[userId];
   }
 
+  async clearForUser(userId) {
+    this.state.byUser[userId] = [];
+    await this.persist();
+    return [];
+  }
+
   async persist() {
     const dir = dirname(this.dbPath);
     if (!existsSync(dir)) {

@@ -126,6 +126,51 @@ export function createIntegrationServer({ preferencesRepository }) {
       return;
     }
 
+    if (
+      req.method === "DELETE" &&
+      req.url.startsWith("/v1/donor-setup/preferences")
+    ) {
+      const requestUrl = new URL(req.url, "http://localhost");
+      const queryUserId = requestUrl.searchParams.get("user_id");
+      const headerUserId = extractUserIdFromHeaders(req.headers);
+      const { userId, error: authError } = resolveAuthenticatedUserId({
+        headerUserId,
+        supplied: queryUserId
+      });
+      if (authError) {
+        return sendJson(res, authError.status, authError.body);
+      }
+      const validationError = validateGetPresetsRequest(userId);
+      if (validationError) {
+        return sendJson(res, 400, {
+          code: "invalid_request",
+          message: validationError
+        });
+      }
+      preferencesRepository
+        .clearForUser(userId, { authHeaders: pickAuthHeaders(req.headers) })
+        .then(() =>
+          sendJson(res, 200, {
+            user_id: userId,
+            presets: [],
+            cleared: true
+          })
+        )
+        .catch((error) => {
+          if (error instanceof UserServicePreferencesError && error.status < 500) {
+            return sendJson(res, error.status, {
+              code: error.code,
+              message: error.message
+            });
+          }
+          return sendJson(res, 500, {
+            code: "persistence_error",
+            message: `Unable to clear presets: ${error.message || error}`
+          });
+        });
+      return;
+    }
+
     if (req.method === "POST" && req.url === "/v1/donor-setup/preferences") {
       let rawBody = "";
 
