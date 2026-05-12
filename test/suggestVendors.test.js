@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildSuggestVendorsResponse,
+  validateDeletePresetItemRequest,
   validateGetPresetsRequest,
   validateSavePresetsRequest,
   validateSuggestVendorsRequest
@@ -63,4 +64,23 @@ test("rejects invalid save presets request", () => {
 test("rejects get presets request without user_id", () => {
   const error = validateGetPresetsRequest("");
   assert.equal(error, "user_id is required.");
+});
+
+test("delete preset item requires restaurant_name and order_url", () => {
+  assert.equal(
+    validateDeletePresetItemRequest({}),
+    "restaurant_name is required."
+  );
+  assert.equal(
+    validateDeletePresetItemRequest({ restaurant_name: "A" }),
+    "order_url is required."
+  );
+  assert.equal(validateDeletePresetItemRequest(null), "Request body must be a JSON object.");
+  assert.equal(
+    validateDeletePresetItemRequest({
+      restaurant_name: "A2B",
+      order_url: "https://x"
+    }),
+    null
+  );
 });

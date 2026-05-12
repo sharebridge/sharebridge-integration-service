@@ -10,6 +10,7 @@
  *   listByUser(userId, opts?)              -> Promise<Preset[]>
  *   upsertForUser(userId, presets, opts?)  -> Promise<Preset[]>  (full set after upsert)
  *   clearForUser(userId, opts?)            -> Promise<Preset[]>  (always [])
+ *   removePresetForUser(userId, key, opts?) -> Promise<Preset[]>  (remaining)
  *
  * When the user-service preferences API ships, plug in the remote
  * implementation by setting `PREFERENCES_BACKEND=user_service` and
@@ -38,6 +39,10 @@ export class LocalPreferencesRepository {
 
   async clearForUser(userId, _opts = {}) {
     return this._store.clearForUser(userId);
+  }
+
+  async removePresetForUser(userId, key, _opts = {}) {
+    return this._store.removePresetForUser(userId, key);
   }
 }
 
@@ -111,6 +116,15 @@ export class UserServicePreferencesRepository {
 
   async clearForUser(userId, opts = {}) {
     return this.upsertForUser(userId, [], opts);
+  }
+
+  async removePresetForUser(userId, key, opts = {}) {
+    const existing = await this.listByUser(userId, opts);
+    const norm = (p) =>
+      `${String(p.restaurant_name ?? "").trim()}|${String(p.order_url ?? "").trim()}`;
+    const target = norm(key);
+    const next = existing.filter((p) => norm(p) !== target);
+    return this.upsertForUser(userId, next, opts);
   }
 
   #buildHeaders(authHeaders = {}, extraHeaders = {}) {

@@ -44,6 +44,21 @@ export class PreferencesStore {
     return [];
   }
 
+  /**
+   * Removes one preset matching trimmed (restaurant_name, order_url),
+   * same key as saveForUser dedupe.
+   */
+  async removePresetForUser(userId, { restaurant_name, order_url }) {
+    const key = (p) =>
+      `${String(p.restaurant_name ?? "").trim()}|${String(p.order_url ?? "").trim()}`;
+    const target = key({ restaurant_name, order_url });
+    const existing = this.getByUser(userId);
+    const next = existing.filter((p) => key(p) !== target);
+    this.state.byUser[userId] = next;
+    await this.persist();
+    return next;
+  }
+
   async persist() {
     const dir = dirname(this.dbPath);
     if (!existsSync(dir)) {

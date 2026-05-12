@@ -23,6 +23,15 @@ class _FakeStore {
     this.byUser.set(userId, []);
     return [];
   }
+  async removePresetForUser(userId, key) {
+    const list = this.byUser.get(userId) || [];
+    const norm = (p) =>
+      `${String(p.restaurant_name ?? "").trim()}|${String(p.order_url ?? "").trim()}`;
+    const target = norm(key);
+    const next = list.filter((p) => norm(p) !== target);
+    this.byUser.set(userId, next);
+    return next;
+  }
 }
 
 test("LocalPreferencesRepository delegates list and upsert to store", async () => {
@@ -43,6 +52,22 @@ test("LocalPreferencesRepository clearForUser empties store for user", async () 
   const cleared = await repository.clearForUser("alice");
   assert.deepEqual(cleared, []);
   assert.deepEqual(await repository.listByUser("alice"), []);
+});
+
+test("LocalPreferencesRepository removePresetForUser removes matching row", async () => {
+  const store = new _FakeStore();
+  const repository = new LocalPreferencesRepository(store);
+  await repository.init();
+  await repository.upsertForUser("alice", [
+    { restaurant_name: "A", order_url: "http://a" },
+    { restaurant_name: "B", order_url: "http://b" }
+  ]);
+  const next = await repository.removePresetForUser("alice", {
+    restaurant_name: "A",
+    order_url: "http://a"
+  });
+  assert.equal(next.length, 1);
+  assert.equal(next[0].restaurant_name, "B");
 });
 
 test("LocalPreferencesRepository requires a store", () => {
@@ -127,6 +152,58 @@ test("UserServicePreferencesRepository upsertForUser sends PUT payload", async (
     assert.equal(seenMethod, "PUT");
     assert.deepEqual(seenBody, { presets: payload });
     assert.deepEqual(saved, payload);
+  } finally {
+    await stub.cleanup();
+  }
+});
+
+test("UserServicePreferencesRepository removePresetForUser GETs then PUTs filtered list", async () => {
+  let getSeen = 0;
+  let putBody = null;
+  const stub = await startStubUserService((req, res) => {
+    if (req.method === "GET") {
+      getSeen += 1;
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          presets: [
+            { restaurant_name: "A", order_url: "http://a" },
+            { restaurant_name: "B", order_url: "http://b" }
+          ]
+        })
+      );
+      return;
+    }
+    if (req.method === "PUT") {
+      let raw = "";
+      req.on("data", (chunk) => {
+        raw += chunk;
+      });
+      req.on("end", () => {
+        putBody = JSON.parse(raw || "{}");
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ presets: putBody.presets || [] }));
+      });
+      return;
+    }
+    res.writeHead(405);
+    res.end();
+  });
+  try {
+    const repository = new UserServicePreferencesRepository({
+      baseUrl: stub.baseUrl
+    });
+    const remaining = await repository.removePresetForUser(
+      "alice",
+      { restaurant_name: "A", order_url: "http://a" },
+      { authHeaders: { authorization: "Bearer t" } }
+    );
+    assert.equal(getSeen, 1);
+    assert.equal(remaining.length, 1);
+    assert.equal(remaining[0].restaurant_name, "B");
+    assert.deepEqual(putBody, {
+      presets: [{ restaurant_name: "B", order_url: "http://b" }]
+    });
   } finally {
     await stub.cleanup();
   }

@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
 import {
   buildSuggestVendorsResponse,
+  validateDeletePresetItemRequest,
   validateGetPresetsRequest,
   validateSavePresetsRequest,
   validateSuggestVendorsRequest
@@ -123,6 +124,81 @@ export function createIntegrationServer({ preferencesRepository }) {
             message: `Unable to load presets: ${error.message || error}`
           });
         });
+      return;
+    }
+
+    if (
+      req.method === "POST" &&
+      req.url === "/v1/donor-setup/preferences/delete-item"
+    ) {
+      let rawBody = "";
+
+      req.on("data", (chunk) => {
+        rawBody += chunk;
+      });
+
+      req.on("end", () => {
+        let payload;
+        try {
+          payload = JSON.parse(rawBody || "{}");
+        } catch {
+          return sendJson(res, 400, {
+            code: "invalid_json",
+            message: "Request body must be valid JSON."
+          });
+        }
+
+        const headerUserId = extractUserIdFromHeaders(req.headers);
+        const { userId: authedUserId, error: authError } =
+          resolveAuthenticatedUserId({
+            headerUserId,
+            supplied: payload.user_id
+          });
+        if (authError) {
+          return sendJson(res, authError.status, authError.body);
+        }
+
+        const validationError = validateDeletePresetItemRequest(payload);
+        if (validationError) {
+          return sendJson(res, 400, {
+            code: "invalid_request",
+            message: validationError
+          });
+        }
+
+        const key = {
+          restaurant_name: String(payload.restaurant_name).trim(),
+          order_url: String(payload.order_url).trim()
+        };
+
+        preferencesRepository
+          .removePresetForUser(authedUserId, key, {
+            authHeaders: pickAuthHeaders(req.headers)
+          })
+          .then((presets) =>
+            sendJson(res, 200, {
+              user_id: authedUserId,
+              presets
+            })
+          )
+          .catch((error) => {
+            if (
+              error instanceof UserServicePreferencesError &&
+              error.status < 500
+            ) {
+              return sendJson(res, error.status, {
+                code: error.code,
+                message: error.message
+              });
+            }
+            return sendJson(res, 500, {
+              code: "persistence_error",
+              message: `Unable to remove preset: ${error.message || error}`
+            });
+          });
+        return;
+      });
+
       return;
     }
 

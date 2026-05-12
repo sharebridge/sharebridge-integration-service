@@ -102,3 +102,16 @@ export function validateGetPresetsRequest(userId) {
   }
   return null;
 }
+
+export function validateDeletePresetItemRequest(payload) {
+  if (!payload || typeof payload !== "object") {
+    return "Request body must be a JSON object.";
+  }
+  if (!isNonEmptyString(payload.restaurant_name)) {
+    return "restaurant_name is required.";
+  }
+  if (!isNonEmptyString(payload.order_url)) {
+    return "order_url is required.";
+  }
+  return null;
+}

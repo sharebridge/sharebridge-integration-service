@@ -209,6 +209,50 @@ test("save rejects malformed presets without persisting", async () => {
   }
 });
 
+test("POST delete-item removes one preset by restaurant_name and order_url", async () => {
+  const { baseUrl, cleanup } = await startTestServer();
+  try {
+    const userId = "user-delete-one";
+    const token = mintAuthToken(userId);
+    await fetch(`${baseUrl}/v1/donor-setup/preferences`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ user_id: userId, presets: [sampleA, sampleB] })
+    });
+
+    const del = await fetch(
+      `${baseUrl}/v1/donor-setup/preferences/delete-item`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          restaurant_name: sampleA.restaurant_name,
+          order_url: sampleA.order_url
+        })
+      }
+    );
+    assert.equal(del.status, 200);
+    const delBody = await del.json();
+    assert.equal(delBody.presets.length, 1);
+    assert.equal(delBody.presets[0].restaurant_name, sampleB.restaurant_name);
+
+    const getRes = await fetch(
+      `${baseUrl}/v1/donor-setup/preferences?user_id=${userId}`,
+      { headers: { authorization: `Bearer ${token}` } }
+    );
+    assert.equal((await getRes.json()).presets.length, 1);
+  } finally {
+    await cleanup();
+  }
+});
+
 test("DELETE preferences clears authed user only", async () => {
   const { baseUrl, cleanup } = await startTestServer();
   try {
