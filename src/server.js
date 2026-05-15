@@ -22,6 +22,11 @@ import {
   extractUserIdFromHeaders,
   resolveAuthenticatedUserId
 } from "./authContext.js";
+import { OrderIntentStore } from "./orderIntentStore.js";
+import {
+  buildOrderIntentRecord,
+  validateCreateOrderIntentRequest
+} from "./orderIntents.js";
 
 const DEFAULT_PORT = Number(process.env.PORT || 8080);
 
@@ -64,12 +69,16 @@ function readJsonBody(req) {
  */
 export function createIntegrationServer({
   preferencesRepository,
-  aiOrchestrationClient = new AiOrchestrationClient()
+  aiOrchestrationClient = new AiOrchestrationClient(),
+  orderIntentStore = new OrderIntentStore()
 }) {
   if (!preferencesRepository) {
     throw new Error(
       "createIntegrationServer requires preferencesRepository"
     );
+  }
+  if (!orderIntentStore) {
+    throw new Error("createIntegrationServer requires orderIntentStore");
   }
   return createServer((req, res) => {
     if (req.method === "GET" && req.url === "/health") {
@@ -146,6 +155,69 @@ export function createIntegrationServer({
             userId
           });
           return sendJson(res, 200, { user_id: userId, ...body });
+        })
+        .catch((error) => {
+          if (error?.message === "invalid_json") {
+            return sendJson(res, 400, {
+              code: "invalid_json",
+              message: "Request body must be valid JSON."
+            });
+          }
+          return sendJson(res, 500, {
+            code: "internal_error",
+            message: error?.message || "Unexpected error."
+          });
+        });
+
+      return;
+    }
+
+    if (
+      req.method === "POST" &&
+      req.url === "/v1/donor-seeker/order-intents"
+    ) {
+      readJsonBody(req)
+        .then(async (payload) => {
+          const headerUserId = extractUserIdFromHeaders(req.headers);
+          const suppliedUserId =
+            typeof payload.user_id === "string" ? payload.user_id.trim() : "";
+          let userId = headerUserId || suppliedUserId || null;
+          if (
+            headerUserId &&
+            suppliedUserId &&
+            headerUserId !== suppliedUserId
+          ) {
+            return sendJson(res, 403, {
+              code: "user_id_mismatch",
+              message:
+                "user_id in payload does not match the authenticated user_id."
+            });
+          }
+          if (!userId) {
+            return sendJson(res, 400, {
+              code: "invalid_request",
+              message: "user_id is required when no Bearer token is supplied."
+            });
+          }
+
+          const validationError = validateCreateOrderIntentRequest(payload);
+          if (validationError) {
+            return sendJson(res, 400, {
+              code: "invalid_request",
+              message: validationError
+            });
+          }
+
+          const record = buildOrderIntentRecord(payload, { userId });
+          await orderIntentStore.createForUser(userId, record);
+          await orderIntentStore.persist();
+          return sendJson(res, 201, {
+            order_intent_id: record.id,
+            user_id: userId,
+            pack_id: record.pack_id,
+            status: record.status,
+            created_at: record.created_at
+          });
         })
         .catch((error) => {
           if (error?.message === "invalid_json") {
@@ -430,11 +502,17 @@ const isMainModule =
   process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMainModule) {
   const preferencesRepository = buildDefaultPreferencesRepository();
-  const server = createIntegrationServer({ preferencesRepository });
-  preferencesRepository.init().then(() => {
-    server.listen(DEFAULT_PORT, () => {
-      // eslint-disable-next-line no-console
-      console.log(`Integration service listening on ${DEFAULT_PORT}`);
-    });
+  const orderIntentStore = new OrderIntentStore();
+  const server = createIntegrationServer({
+    preferencesRepository,
+    orderIntentStore
   });
+  Promise.all([preferencesRepository.init(), orderIntentStore.init()]).then(
+    () => {
+      server.listen(DEFAULT_PORT, () => {
+        // eslint-disable-next-line no-console
+        console.log(`Integration service listening on ${DEFAULT_PORT}`);
+      });
+    }
+  );
 }
