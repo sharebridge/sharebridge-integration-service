@@ -4,6 +4,9 @@
   "private": true,
   "description": "Integration API for donor setup, preferences, and AI orchestration bridges.",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",

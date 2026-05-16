@@ -1,0 +1,30 @@
+# Render Blueprint — deploy user-service first; copy its URL and AUTH_TOKEN_SECRET into this service.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: sharingbridge-integration-service
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: AUTH_TOKEN_ISSUER
+        value: sharingbridge-user-service
+      - key: AUTH_TOKEN_AUDIENCE
+        value: sharingbridge-clients
+      - key: PREFERENCES_BACKEND
+        value: user_service
+      # Set after user-service and ai-orchestration are live:
+      # AUTH_TOKEN_SECRET (same as user-service)
+      # USER_SERVICE_BASE_URL, AI_ORCHESTRATION_BASE_URL
+      - key: AI_ORCHESTRATION_INTERNAL_TOKEN
+        generateValue: true
+      - key: AI_ORCHESTRATION_TIMEOUT_MS
+        value: "15000"
+      - key: AI_SUGGEST_VENDORS_ENABLED
+        value: "true"
+      - key: AI_INSTRUCTION_PACK_ENABLED
+        value: "true"
