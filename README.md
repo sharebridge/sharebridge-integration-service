@@ -39,7 +39,7 @@ Copy `.env.example` to `.env` for local overrides.
 
 ## Deploy (Render)
 
-Blueprint: `render.yaml`. Deploy **after** user-service and ai-orchestration; set `USER_SERVICE_BASE_URL`, `AI_ORCHESTRATION_BASE_URL`, and shared secrets. Guide: [DEPLOY_RENDER.md](https://github.com/sharingbridge/sharingbridge/blob/main/development/DEPLOY_RENDER.md).
+Deploy **after** user-service and ai-orchestration. [configuration/backend-render.md](https://github.com/sharingbridge/sharingbridge/blob/main/configuration/backend-render.md). Blueprint: `render.yaml`.
 
 Local endpoints:
 

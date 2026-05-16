@@ -1,5 +1,6 @@
-# Render Blueprint — deploy user-service first; copy its URL and AUTH_TOKEN_SECRET into this service.
-# https://render.com/docs/blueprint-spec
+# Render Blueprint — deploy AFTER user-service and ai-orchestration.
+# Paste AUTH_TOKEN_SECRET, USER_SERVICE_BASE_URL, AI_ORCHESTRATION_BASE_URL manually.
+# Guide: https://github.com/sharingbridge/sharingbridge/blob/main/configuration/backend-render.md
 services:
   - type: web
     name: sharingbridge-integration-service
@@ -17,9 +18,12 @@ services:
         value: sharingbridge-clients
       - key: PREFERENCES_BACKEND
         value: user_service
-      # Set after user-service and ai-orchestration are live:
-      # AUTH_TOKEN_SECRET (same as user-service)
-      # USER_SERVICE_BASE_URL, AI_ORCHESTRATION_BASE_URL
+      - key: AUTH_TOKEN_SECRET
+        sync: false
+      - key: USER_SERVICE_BASE_URL
+        sync: false
+      - key: AI_ORCHESTRATION_BASE_URL
+        sync: false
       - key: AI_ORCHESTRATION_INTERNAL_API_KEY
         generateValue: true
       - key: AI_ORCHESTRATION_TIMEOUT_MS
