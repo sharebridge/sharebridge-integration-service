@@ -30,6 +30,11 @@ import {
   sortOrderIntentsNewestFirst,
   validateCreateOrderIntentRequest
 } from "./orderIntents.js";
+import {
+  applyCorsHeaders,
+  handleCorsPreflight,
+  parseCorsOrigins
+} from "./cors.js";
 
 const DEFAULT_PORT = Number(process.env.PORT || 8080);
 
@@ -73,7 +78,8 @@ function readJsonBody(req) {
 export function createIntegrationServer({
   preferencesRepository,
   aiOrchestrationClient = new AiOrchestrationClient(),
-  orderIntentStore = new OrderIntentStore()
+  orderIntentStore = new OrderIntentStore(),
+  corsConfig = parseCorsOrigins()
 }) {
   if (!preferencesRepository) {
     throw new Error(
@@ -84,6 +90,11 @@ export function createIntegrationServer({
     throw new Error("createIntegrationServer requires orderIntentStore");
   }
   return createServer((req, res) => {
+    applyCorsHeaders(req, res, corsConfig);
+    if (handleCorsPreflight(req, res, corsConfig)) {
+      return;
+    }
+
     if (req.method === "GET" && req.url === "/health") {
       return sendJson(res, 200, { ok: true, service: "integration-service" });
     }

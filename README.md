@@ -47,6 +47,8 @@ Local endpoints:
 - `POST http://localhost:8080/v1/donor-seeker/instruction-pack` (delivery instruction narrative)
 - `POST http://localhost:8080/v1/donor-seeker/order-intents` (register or update order intent when donor copies instructions)
 - `GET  http://localhost:8080/v1/donor-seeker/order-intents` (list donation intents for signed-in donor; newest first)
+
+**Browser clients:** set `WEB_CORS_ORIGINS` (comma-separated) or `*` for local dev so `sharingbridge-web-app` can call the API.
 - `POST http://localhost:8080/v1/donor-setup/preferences` (save donor presets)
 - `GET  http://localhost:8080/v1/donor-setup/preferences` (fetch presets)
 - `DELETE http://localhost:8080/v1/donor-setup/preferences?user_id=…` (clear all; `user_id` optional when bearer identifies user)
