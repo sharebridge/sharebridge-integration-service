@@ -25,6 +25,7 @@ import {
 import { OrderIntentStore } from "./orderIntentStore.js";
 import {
   buildOrderIntentRecord,
+  mergeOrderIntentRecord,
   validateCreateOrderIntentRequest
 } from "./orderIntents.js";
 
@@ -208,15 +209,44 @@ export function createIntegrationServer({
             });
           }
 
-          const record = buildOrderIntentRecord(payload, { userId });
-          await orderIntentStore.createForUser(userId, record);
+          const packId =
+            typeof payload.pack_id === "string"
+              ? payload.pack_id.trim()
+              : typeof payload.instruction_pack_id === "string"
+                ? payload.instruction_pack_id.trim()
+                : "";
+          const existingByPack =
+            packId.length > 0
+              ? orderIntentStore.findByPackId(userId, packId)
+              : null;
+          const suppliedIntentId =
+            typeof payload.order_intent_id === "string"
+              ? payload.order_intent_id.trim()
+              : "";
+          const existingById =
+            !existingByPack && suppliedIntentId
+              ? orderIntentStore.findById(userId, suppliedIntentId)
+              : null;
+          const existing = existingByPack || existingById;
+
+          let record;
+          let created;
+          if (existing) {
+            record = mergeOrderIntentRecord(existing, payload);
+            ({ created } = await orderIntentStore.upsertForUser(userId, record));
+          } else {
+            record = buildOrderIntentRecord(payload, { userId });
+            ({ created } = await orderIntentStore.upsertForUser(userId, record));
+          }
           await orderIntentStore.persist();
-          return sendJson(res, 201, {
+          return sendJson(res, created ? 201 : 200, {
             order_intent_id: record.id,
             user_id: userId,
             pack_id: record.pack_id,
             status: record.status,
-            created_at: record.created_at
+            created_at: record.created_at,
+            updated_at: record.updated_at,
+            created
           });
         })
         .catch((error) => {

@@ -35,12 +35,73 @@ export class OrderIntentStore {
     );
   }
 
+  _listForUser(userId) {
+    if (!Array.isArray(this.byUser[userId])) {
+      this.byUser[userId] = [];
+    }
+    return this.byUser[userId];
+  }
+
+  findByPackId(userId, packId) {
+    const normalizedPackId =
+      typeof packId === "string" ? packId.trim() : "";
+    if (!normalizedPackId) {
+      return null;
+    }
+    const list = this._listForUser(userId);
+    return (
+      list.find(
+        (record) =>
+          typeof record?.pack_id === "string" &&
+          record.pack_id.trim() === normalizedPackId
+      ) ?? null
+    );
+  }
+
+  findById(userId, orderIntentId) {
+    const normalizedId =
+      typeof orderIntentId === "string" ? orderIntentId.trim() : "";
+    if (!normalizedId) {
+      return null;
+    }
+    const list = this._listForUser(userId);
+    return list.find((record) => record?.id === normalizedId) ?? null;
+  }
+
   async createForUser(userId, record) {
     await this.init();
-    const list = Array.isArray(this.byUser[userId]) ? this.byUser[userId] : [];
-    list.push(record);
-    this.byUser[userId] = list;
+    this._listForUser(userId).push(record);
     return record;
+  }
+
+  /**
+   * Create or update by pack_id. Preserves id and created_at on update.
+   * @returns {{ record: object, created: boolean }}
+   */
+  async upsertForUser(userId, record) {
+    await this.init();
+    const list = this._listForUser(userId);
+    const packId =
+      typeof record?.pack_id === "string" ? record.pack_id.trim() : "";
+    const index = list.findIndex(
+      (item) =>
+        typeof item?.pack_id === "string" && item.pack_id.trim() === packId
+    );
+    if (index >= 0) {
+      const existing = list[index];
+      const updated = {
+        ...existing,
+        ...record,
+        id: existing.id,
+        user_id: existing.user_id ?? userId,
+        pack_id: existing.pack_id,
+        created_at: existing.created_at
+      };
+      list[index] = updated;
+      return { record: updated, created: false };
+    }
+    list.push(record);
+    return { record, created: true };
   }
 
   listForUser(userId) {

@@ -62,4 +62,27 @@ test("POST order-intents registers intent when instructions copied", async (t) =
 
   const saved = orderIntentStore.listForUser("alice");
   assert.equal(saved.length, 1);
+
+  const firstId = body.order_intent_id;
+
+  const { status: status2, body: body2 } = await postJson(
+    `http://127.0.0.1:${port}`,
+    "/v1/donor-seeker/order-intents",
+    {
+      user_id: "alice",
+      pack_id: "pack-test-1",
+      status: "instructions_copied",
+      has_reference_photo: false,
+      verbal_handover_notes: "updated notes"
+    }
+  );
+
+  assert.equal(status2, 200);
+  assert.equal(body2.order_intent_id, firstId);
+  assert.equal(body2.created, false);
+  const savedAfter = orderIntentStore.listForUser("alice");
+  assert.equal(savedAfter.length, 1);
+  assert.equal(body2.updated_at, savedAfter[0].updated_at);
+  assert.equal(savedAfter[0].verbal_handover_notes, "updated notes");
+  assert.equal(savedAfter[0].has_reference_photo, false);
 });
