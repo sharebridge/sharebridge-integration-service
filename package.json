@@ -11,5 +11,8 @@
     "start": "node src/server.js",
     "test": "node --test",
     "backfill:user-service-presets": "node scripts/backfill-presets-to-user-service.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1"
   }
 }

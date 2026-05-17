@@ -35,7 +35,7 @@ npm test
 npm start
 ```
 
-Copy `.env.example` to `.env` for local overrides.
+Copy `.env.example` to `.env` for local overrides (loaded automatically on `npm start` via dotenv).
 
 ## Deploy (Render)
 

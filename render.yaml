@@ -32,3 +32,5 @@ services:
         value: "true"
       - key: AI_INSTRUCTION_PACK_ENABLED
         value: "true"
+      - key: WEB_CORS_ORIGINS
+        sync: false
